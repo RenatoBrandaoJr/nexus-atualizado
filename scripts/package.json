@@ -1,0 +1,14 @@
+{
+  "name": "supabase-migration",
+  "version": "1.0.0",
+  "description": "Script para migração de banco de dados Supabase",
+  "main": "migrate.js",
+  "type": "module",
+  "scripts": {
+    "migrate": "node migrate.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.39.6",
+    "dotenv": "^16.4.1"
+  }
+}
