@@ -72,20 +72,9 @@ export default async function handler(req, res) {
               <title>Quadro Kanban TaskMaster</title>
               <meta charset="utf-8">
               <meta name="viewport" content="width=device-width, initial-scale=1">
-              <!-- Incluir a biblioteca Sortable.js para arrastar e soltar de múltiplas fontes para garantir compatibilidade -->
-              <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+              <!-- Sem dependências externas - usando HTML5 Drag and Drop nativo -->
               <script>
-                // Verificar se o Sortable foi carregado corretamente, caso contrário, tentar outra fonte
-                setTimeout(function() {
-                  if (typeof Sortable === 'undefined') {
-                    console.log('Sortable não foi carregado da primeira fonte, tentando alternativa...');
-                    var script = document.createElement('script');
-                    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.14.0/Sortable.min.js';
-                    document.head.appendChild(script);
-                  } else {
-                    console.log('Sortable carregado com sucesso!');
-                  }
-                }, 500);
+                console.log('Usando API nativa de Drag and Drop HTML5');
               </script>
               
               <style>
@@ -313,11 +302,11 @@ export default async function handler(req, res) {
                 <a href="/">Voltar para a página inicial</a>
               </div>
               
-              <!-- Script para inicializar o drag-and-drop com compatibilidade para ambiente serverless -->
+              <!-- Script para implementar funcionalidade de arrastar e soltar usando HTML5 nativo -->
               <script>
-                // Adicionando o script em uma função isolada para evitar problemas no ambiente serverless
+                // Função para inicializar o quadro Kanban com HTML5 Drag and Drop nativo
                 function initKanbanBoard() {
-                  // Inicializar Sortable para cada coluna
+                  // Constantes para as colunas
                   var columns = ['todo-column', 'in-progress-column', 'review-column', 'done-column'];
                   var columnsMap = {
                     'todo-column': 'A fazer',
@@ -326,10 +315,7 @@ export default async function handler(req, res) {
                     'done-column': 'Concluído'
                   };
                   
-                  // Objeto para armazenar as instâncias do Sortable
-                  var sortables = {};
-                  
-                  // Função para atualizar os contadores de cada coluna
+                  // Função para atualizar contadores
                   function updateColumnCounts() {
                     for (var i = 0; i < columns.length; i++) {
                       var columnId = columns[i];
@@ -344,7 +330,7 @@ export default async function handler(req, res) {
                     }
                   }
                   
-                  // Função para exibir notificação de mudança de status
+                  // Função para mostrar notificação
                   function showNotification(taskId, newStatus) {
                     var notification = document.createElement('div');
                     notification.className = 'notification';
@@ -363,12 +349,10 @@ export default async function handler(req, res) {
                     
                     document.body.appendChild(notification);
                     
-                    // Animação de fade in
                     setTimeout(function() {
                       notification.style.opacity = '1';
                     }, 10);
                     
-                    // Remover a notificação após 3 segundos
                     setTimeout(function() {
                       notification.style.opacity = '0';
                       setTimeout(function() {
@@ -379,45 +363,91 @@ export default async function handler(req, res) {
                     }, 3000);
                   }
                   
-                  // Inicializar Sortable.js para cada coluna
+                  // Configurar os eventos de arrastar e soltar para cada card
+                  var cards = document.querySelectorAll('.card');
+                  for (var i = 0; i < cards.length; i++) {
+                    var card = cards[i];
+                    card.setAttribute('draggable', 'true');
+                    
+                    // Evento quando o arrasto começa
+                    card.addEventListener('dragstart', function(e) {
+                      e.dataTransfer.setData('text/plain', e.target.getAttribute('data-id'));
+                      e.target.classList.add('card-drag');
+                      setTimeout(function() {
+                        e.target.classList.add('dragging');
+                      }, 0);
+                    });
+                    
+                    // Evento quando o arrasto termina
+                    card.addEventListener('dragend', function(e) {
+                      e.target.classList.remove('card-drag');
+                      e.target.classList.remove('dragging');
+                      document.querySelectorAll('.column-cards').forEach(function(col) {
+                        col.classList.remove('drag-over');
+                      });
+                    });
+                  }
+                  
+                  // Configurar eventos para as colunas de destino
                   for (var i = 0; i < columns.length; i++) {
                     var columnId = columns[i];
                     var column = document.getElementById(columnId);
-                    if (column && typeof Sortable !== 'undefined') {
-                      sortables[columnId] = Sortable.create(column, {
-                        group: 'kanban-board',  // Grupos compartilhados permitem arrastar entre listas
-                        animation: 150,  // Duração da animação em milissegundos
-                        ghostClass: 'card-ghost',  // Classe CSS para o "fantasma" durante o arrasto
-                        chosenClass: 'card-chosen',  // Classe CSS para o item escolhido
-                        dragClass: 'card-drag',  // Classe CSS para o item durante o arrasto
+                    
+                    if (column) {
+                      // Permitir soltar na coluna
+                      column.addEventListener('dragover', function(e) {
+                        e.preventDefault(); // Permitir soltar
+                        this.classList.add('drag-over');
+                      });
+                      
+                      // Quando arrastar sobre a coluna
+                      column.addEventListener('dragenter', function(e) {
+                        e.preventDefault();
+                        this.classList.add('drag-over');
+                      });
+                      
+                      // Quando sair da coluna
+                      column.addEventListener('dragleave', function(e) {
+                        this.classList.remove('drag-over');
+                      });
+                      
+                      // Quando soltar o card na coluna
+                      column.addEventListener('drop', function(e) {
+                        e.preventDefault();
+                        this.classList.remove('drag-over');
                         
-                        // Evento chamado quando um item é movido entre listas
-                        onEnd: function(evt) {
-                          var item = evt.item;
-                          var taskId = item.getAttribute('data-id');
-                          var newColumnId = evt.to.id;
-                          var newStatus = columnsMap[newColumnId];
-                          
-                          // Atualizar o campo de status oculto dentro do cartão
-                          var statusInput = item.querySelector('input[name="status"]');
-                          if (statusInput) {
-                            statusInput.value = newColumnId.replace('-column', '');
+                        var taskId = e.dataTransfer.getData('text/plain');
+                        var card = document.querySelector('.card[data-id="' + taskId + '"]');
+                        
+                        if (card) {
+                          // Remover da coluna atual
+                          if (card.parentNode) {
+                            card.parentNode.removeChild(card);
                           }
                           
-                          // Exibir notificação
+                          // Adicionar à nova coluna
+                          this.appendChild(card);
+                          
+                          // Atualizar status no campo oculto
+                          var statusInput = card.querySelector('input[name="status"]');
+                          if (statusInput) {
+                            statusInput.value = this.id.replace('-column', '');
+                          }
+                          
+                          // Mostrar notificação
+                          var newStatus = columnsMap[this.id];
                           showNotification(taskId, newStatus);
                           
                           // Atualizar contadores
                           updateColumnCounts();
                           
-                          // Em um sistema real, aqui faria uma chamada API para atualizar o status no servidor
                           console.log('Tarefa #' + taskId + ' movida para ' + newStatus);
                         }
                       });
                     }
                   }
                   
-                  // Configurar os botões com verificações de existência
+                  // Configurar os botões
                   var updateButton = document.querySelector('.btn-light');
                   if (updateButton) {
                     updateButton.addEventListener('click', function() {
@@ -442,24 +472,36 @@ export default async function handler(req, res) {
                 }
               </script>
               
-              <!-- Adicionar estilos para o drag-and-drop -->
+              <!-- Adicionar estilos para o HTML5 drag-and-drop nativo -->
               <style>
-                .card-ghost {
-                  opacity: 0.5;
-                  background: #c8ebfb;
+                .column-cards {
+                  min-height: 50px;
+                  padding: 5px;
+                  border: 2px solid transparent;
+                  transition: border-color 0.2s ease;
                 }
                 
-                .card-chosen {
-                  box-shadow: 0 0 0 2px #2196F3, 0 5px 10px rgba(0,0,0,0.2) !important;
+                .drag-over {
+                  border-color: #2196F3;
+                  background-color: rgba(33, 150, 243, 0.1);
                 }
                 
                 .card-drag {
                   transform: rotate(3deg);
+                  opacity: 0.7;
                 }
                 
-                .column-cards {
-                  min-height: 50px;
-                  padding: 5px;
+                .dragging {
+                  opacity: 0.4;
+                  border: 2px dashed #ccc;
+                }
+                
+                .card {
+                  cursor: grab;
+                }
+                
+                .card:active {
+                  cursor: grabbing;
                 }
               </style>
             </body>
