@@ -300,12 +300,13 @@ export default async function handler(req, res) {
                 <a href="/">Voltar para a página inicial</a>
               </div>
               
-              <!-- Script para inicializar o drag-and-drop -->
+              <!-- Script para inicializar o drag-and-drop com compatibilidade para ambiente serverless -->
               <script>
-                document.addEventListener('DOMContentLoaded', function() {
+                // Adicionando o script em uma função isolada para evitar problemas no ambiente serverless
+                function initKanbanBoard() {
                   // Inicializar Sortable para cada coluna
-                  const columns = ['todo-column', 'in-progress-column', 'review-column', 'done-column'];
-                  const columnsMap = {
+                  var columns = ['todo-column', 'in-progress-column', 'review-column', 'done-column'];
+                  var columnsMap = {
                     'todo-column': 'A fazer',
                     'in-progress-column': 'Em andamento',
                     'review-column': 'Revisão',
@@ -313,23 +314,28 @@ export default async function handler(req, res) {
                   };
                   
                   // Objeto para armazenar as instâncias do Sortable
-                  const sortables = {};
+                  var sortables = {};
                   
                   // Função para atualizar os contadores de cada coluna
                   function updateColumnCounts() {
-                    columns.forEach(columnId => {
-                      const column = document.getElementById(columnId);
-                      const count = column.querySelectorAll('.card').length;
-                      const countElement = column.parentNode.querySelector('.column-count');
-                      countElement.textContent = count;
-                    });
+                    for (var i = 0; i < columns.length; i++) {
+                      var columnId = columns[i];
+                      var column = document.getElementById(columnId);
+                      if (column) {
+                        var count = column.querySelectorAll('.card').length;
+                        var countElement = column.parentNode.querySelector('.column-count');
+                        if (countElement) {
+                          countElement.textContent = count;
+                        }
+                      }
+                    }
                   }
                   
                   // Função para exibir notificação de mudança de status
                   function showNotification(taskId, newStatus) {
-                    const notification = document.createElement('div');
+                    var notification = document.createElement('div');
                     notification.className = 'notification';
-                    notification.textContent = `Tarefa #${taskId} movida para ${newStatus}`;
+                    notification.textContent = 'Tarefa #' + taskId + ' movida para ' + newStatus;
                     notification.style.position = 'fixed';
                     notification.style.bottom = '20px';
                     notification.style.right = '20px';
@@ -345,58 +351,82 @@ export default async function handler(req, res) {
                     document.body.appendChild(notification);
                     
                     // Animação de fade in
-                    setTimeout(() => notification.style.opacity = '1', 10);
+                    setTimeout(function() {
+                      notification.style.opacity = '1';
+                    }, 10);
                     
                     // Remover a notificação após 3 segundos
-                    setTimeout(() => {
+                    setTimeout(function() {
                       notification.style.opacity = '0';
-                      setTimeout(() => document.body.removeChild(notification), 300);
+                      setTimeout(function() {
+                        if (notification.parentNode) {
+                          notification.parentNode.removeChild(notification);
+                        }
+                      }, 300);
                     }, 3000);
                   }
                   
                   // Inicializar Sortable.js para cada coluna
-                  columns.forEach(columnId => {
-                    const column = document.getElementById(columnId);
-                    sortables[columnId] = Sortable.create(column, {
-                      group: 'kanban-board',  // Grupos compartilhados permitem arrastar entre listas
-                      animation: 150,  // Duração da animação em milissegundos
-                      ghostClass: 'card-ghost',  // Classe CSS para o "fantasma" durante o arrasto
-                      chosenClass: 'card-chosen',  // Classe CSS para o item escolhido
-                      dragClass: 'card-drag',  // Classe CSS para o item durante o arrasto
-                      
-                      // Evento chamado quando um item é movido entre listas
-                      onEnd: function(evt) {
-                        const item = evt.item;
-                        const taskId = item.getAttribute('data-id');
-                        const newColumnId = evt.to.id;
-                        const newStatus = columnsMap[newColumnId];
+                  for (var i = 0; i < columns.length; i++) {
+                    var columnId = columns[i];
+                    var column = document.getElementById(columnId);
+                    if (column && typeof Sortable !== 'undefined') {
+                      sortables[columnId] = Sortable.create(column, {
+                        group: 'kanban-board',  // Grupos compartilhados permitem arrastar entre listas
+                        animation: 150,  // Duração da animação em milissegundos
+                        ghostClass: 'card-ghost',  // Classe CSS para o "fantasma" durante o arrasto
+                        chosenClass: 'card-chosen',  // Classe CSS para o item escolhido
+                        dragClass: 'card-drag',  // Classe CSS para o item durante o arrasto
                         
-                        // Atualizar o campo de status oculto dentro do cartão
-                        const statusInput = item.querySelector('input[name="status"]');
-                        statusInput.value = newColumnId.replace('-column', '');
-                        
-                        // Exibir notificação
-                        showNotification(taskId, newStatus);
-                        
-                        // Atualizar contadores
-                        updateColumnCounts();
-                        
-                        // Em um sistema real, aqui faria uma chamada API para atualizar o status no servidor
-                        console.log(`Tarefa #${taskId} movida para ${newStatus}`);
-                      }
+                        // Evento chamado quando um item é movido entre listas
+                        onEnd: function(evt) {
+                          var item = evt.item;
+                          var taskId = item.getAttribute('data-id');
+                          var newColumnId = evt.to.id;
+                          var newStatus = columnsMap[newColumnId];
+                          
+                          // Atualizar o campo de status oculto dentro do cartão
+                          var statusInput = item.querySelector('input[name="status"]');
+                          if (statusInput) {
+                            statusInput.value = newColumnId.replace('-column', '');
+                          }
+                          
+                          // Exibir notificação
+                          showNotification(taskId, newStatus);
+                          
+                          // Atualizar contadores
+                          updateColumnCounts();
+                          
+                          // Em um sistema real, aqui faria uma chamada API para atualizar o status no servidor
+                          console.log('Tarefa #' + taskId + ' movida para ' + newStatus);
+                        }
+                      });
+                    }
+                  }
+                  
+                  // Configurar os botões com verificações de existência
+                  var updateButton = document.querySelector('.btn-light');
+                  if (updateButton) {
+                    updateButton.addEventListener('click', function() {
+                      alert('Atualizando tarefas...');
+                      location.reload();
                     });
-                  });
+                  }
                   
-                  // Configurar os botões
-                  document.querySelector('.btn-light').addEventListener('click', function() {
-                    alert('Atualizando tarefas...');
-                    location.reload();
-                  });
-                  
-                  document.querySelector('.btn-primary').addEventListener('click', function() {
-                    alert('Funcionalidade de adicionar nova tarefa será implementada em breve!');
-                  });
-                });
+                  var newTaskButton = document.querySelector('.btn-primary');
+                  if (newTaskButton) {
+                    newTaskButton.addEventListener('click', function() {
+                      alert('Funcionalidade de adicionar nova tarefa será implementada em breve!');
+                    });
+                  }
+                }
+                
+                // Executar a inicialização apenas depois que o DOM estiver pronto
+                if (document.readyState === 'loading') {
+                  document.addEventListener('DOMContentLoaded', initKanbanBoard);
+                } else {
+                  initKanbanBoard();
+                }
               </script>
               
               <!-- Adicionar estilos para o drag-and-drop -->
