@@ -72,6 +72,9 @@ export default async function handler(req, res) {
               <title>Quadro Kanban TaskMaster</title>
               <meta charset="utf-8">
               <meta name="viewport" content="width=device-width, initial-scale=1">
+              <!-- Incluir a biblioteca Sortable.js para arrastar e soltar -->
+              <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+              
               <style>
                 body { 
                   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
@@ -228,12 +231,15 @@ export default async function handler(req, res) {
                     <span class="column-title">A fazer</span>
                     <span class="column-count">1</span>
                   </div>
-                  <div class="card priority-medium">
-                    <div class="card-id">#3</div>
-                    <h3 class="card-title">Integrar com Vercel</h3>
-                    <p class="card-desc">Deploy da aplicação na Vercel</p>
-                    <div class="card-meta">
-                      <span class="priority medium">medium</span>
+                  <div class="column-cards" id="todo-column">
+                    <div class="card priority-medium" data-id="3" draggable="true">
+                      <div class="card-id">#3</div>
+                      <h3 class="card-title">Integrar com Vercel</h3>
+                      <p class="card-desc">Deploy da aplicação na Vercel</p>
+                      <div class="card-meta">
+                        <span class="priority medium">medium</span>
+                      </div>
+                      <input type="hidden" name="status" value="todo">
                     </div>
                   </div>
                 </div>
@@ -244,13 +250,16 @@ export default async function handler(req, res) {
                     <span class="column-title">Em andamento</span>
                     <span class="column-count">1</span>
                   </div>
-                  <div class="card priority-high">
-                    <div class="card-id">#2</div>
-                    <h3 class="card-title">Implementar interface Kanban</h3>
-                    <p class="card-desc">Criar componente de visualização Kanban</p>
-                    <div class="card-meta">
-                      <span class="subtask-count">2 subtarefas</span>
-                      <span class="priority high">high</span>
+                  <div class="column-cards" id="in-progress-column">
+                    <div class="card priority-high" data-id="2" draggable="true">
+                      <div class="card-id">#2</div>
+                      <h3 class="card-title">Implementar interface Kanban</h3>
+                      <p class="card-desc">Criar componente de visualização Kanban</p>
+                      <div class="card-meta">
+                        <span class="subtask-count">2 subtarefas</span>
+                        <span class="priority high">high</span>
+                      </div>
+                      <input type="hidden" name="status" value="in-progress">
                     </div>
                   </div>
                 </div>
@@ -261,7 +270,9 @@ export default async function handler(req, res) {
                     <span class="column-title">Revisão</span>
                     <span class="column-count">0</span>
                   </div>
-                  <!-- Sem tarefas nesta coluna -->
+                  <div class="column-cards" id="review-column">
+                    <!-- Sem tarefas nesta coluna -->
+                  </div>
                 </div>
                 
                 <!-- Coluna: Concluído -->
@@ -270,13 +281,16 @@ export default async function handler(req, res) {
                     <span class="column-title">Concluído</span>
                     <span class="column-count">1</span>
                   </div>
-                  <div class="card priority-high">
-                    <div class="card-id">#1</div>
-                    <h3 class="card-title">Configurar ambiente</h3>
-                    <p class="card-desc">Configurar ambiente de desenvolvimento</p>
-                    <div class="card-meta">
-                      <span class="subtask-count">2 subtarefas</span>
-                      <span class="priority high">high</span>
+                  <div class="column-cards" id="done-column">
+                    <div class="card priority-high" data-id="1" draggable="true">
+                      <div class="card-id">#1</div>
+                      <h3 class="card-title">Configurar ambiente</h3>
+                      <p class="card-desc">Configurar ambiente de desenvolvimento</p>
+                      <div class="card-meta">
+                        <span class="subtask-count">2 subtarefas</span>
+                        <span class="priority high">high</span>
+                      </div>
+                      <input type="hidden" name="status" value="done">
                     </div>
                   </div>
                 </div>
@@ -285,6 +299,126 @@ export default async function handler(req, res) {
               <div class="footer">
                 <a href="/">Voltar para a página inicial</a>
               </div>
+              
+              <!-- Script para inicializar o drag-and-drop -->
+              <script>
+                document.addEventListener('DOMContentLoaded', function() {
+                  // Inicializar Sortable para cada coluna
+                  const columns = ['todo-column', 'in-progress-column', 'review-column', 'done-column'];
+                  const columnsMap = {
+                    'todo-column': 'A fazer',
+                    'in-progress-column': 'Em andamento',
+                    'review-column': 'Revisão',
+                    'done-column': 'Concluído'
+                  };
+                  
+                  // Objeto para armazenar as instâncias do Sortable
+                  const sortables = {};
+                  
+                  // Função para atualizar os contadores de cada coluna
+                  function updateColumnCounts() {
+                    columns.forEach(columnId => {
+                      const column = document.getElementById(columnId);
+                      const count = column.querySelectorAll('.card').length;
+                      const countElement = column.parentNode.querySelector('.column-count');
+                      countElement.textContent = count;
+                    });
+                  }
+                  
+                  // Função para exibir notificação de mudança de status
+                  function showNotification(taskId, newStatus) {
+                    const notification = document.createElement('div');
+                    notification.className = 'notification';
+                    notification.textContent = `Tarefa #${taskId} movida para ${newStatus}`;
+                    notification.style.position = 'fixed';
+                    notification.style.bottom = '20px';
+                    notification.style.right = '20px';
+                    notification.style.padding = '10px 15px';
+                    notification.style.backgroundColor = '#4CAF50';
+                    notification.style.color = 'white';
+                    notification.style.borderRadius = '4px';
+                    notification.style.boxShadow = '0 2px 5px rgba(0,0,0,0.2)';
+                    notification.style.zIndex = '1000';
+                    notification.style.opacity = '0';
+                    notification.style.transition = 'opacity 0.3s ease-in-out';
+                    
+                    document.body.appendChild(notification);
+                    
+                    // Animação de fade in
+                    setTimeout(() => notification.style.opacity = '1', 10);
+                    
+                    // Remover a notificação após 3 segundos
+                    setTimeout(() => {
+                      notification.style.opacity = '0';
+                      setTimeout(() => document.body.removeChild(notification), 300);
+                    }, 3000);
+                  }
+                  
+                  // Inicializar Sortable.js para cada coluna
+                  columns.forEach(columnId => {
+                    const column = document.getElementById(columnId);
+                    sortables[columnId] = Sortable.create(column, {
+                      group: 'kanban-board',  // Grupos compartilhados permitem arrastar entre listas
+                      animation: 150,  // Duração da animação em milissegundos
+                      ghostClass: 'card-ghost',  // Classe CSS para o "fantasma" durante o arrasto
+                      chosenClass: 'card-chosen',  // Classe CSS para o item escolhido
+                      dragClass: 'card-drag',  // Classe CSS para o item durante o arrasto
+                      
+                      // Evento chamado quando um item é movido entre listas
+                      onEnd: function(evt) {
+                        const item = evt.item;
+                        const taskId = item.getAttribute('data-id');
+                        const newColumnId = evt.to.id;
+                        const newStatus = columnsMap[newColumnId];
+                        
+                        // Atualizar o campo de status oculto dentro do cartão
+                        const statusInput = item.querySelector('input[name="status"]');
+                        statusInput.value = newColumnId.replace('-column', '');
+                        
+                        // Exibir notificação
+                        showNotification(taskId, newStatus);
+                        
+                        // Atualizar contadores
+                        updateColumnCounts();
+                        
+                        // Em um sistema real, aqui faria uma chamada API para atualizar o status no servidor
+                        console.log(`Tarefa #${taskId} movida para ${newStatus}`);
+                      }
+                    });
+                  });
+                  
+                  // Configurar os botões
+                  document.querySelector('.btn-light').addEventListener('click', function() {
+                    alert('Atualizando tarefas...');
+                    location.reload();
+                  });
+                  
+                  document.querySelector('.btn-primary').addEventListener('click', function() {
+                    alert('Funcionalidade de adicionar nova tarefa será implementada em breve!');
+                  });
+                });
+              </script>
+              
+              <!-- Adicionar estilos para o drag-and-drop -->
+              <style>
+                .card-ghost {
+                  opacity: 0.5;
+                  background: #c8ebfb;
+                }
+                
+                .card-chosen {
+                  box-shadow: 0 0 0 2px #2196F3, 0 5px 10px rgba(0,0,0,0.2) !important;
+                }
+                
+                .card-drag {
+                  transform: rotate(3deg);
+                }
+                
+                .column-cards {
+                  min-height: 50px;
+                  padding: 5px;
+                }
+              </style>
             </body>
           </html>
         `);
