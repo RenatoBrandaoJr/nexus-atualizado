@@ -51,13 +51,38 @@ app.listen(port, () => {
 });
 
 // Função handler para ambiente serverless (Vercel)
-export default function handler(req, res) {
+export default async function handler(req, res) {
+  // Importar o TaskMasterKanban na função handler
+  const { TaskMasterKanban } = await import('./components/taskmaster-kanban.js');
   try {
     // Definir cabeçalhos básicos
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     
     // Verificar a rota solicitada
     const url = req.url || '';
+    
+    // Rota para o quadro Kanban do TaskMaster
+    if (url === '/taskmaster-kanban' || url.startsWith('/taskmaster-kanban?')) {
+      try {
+        // Criar uma instância do componente Kanban
+        const kanban = new TaskMasterKanban();
+        
+        // Sincronizar com o TaskMaster e gerar o HTML do quadro
+        await kanban.syncWithTaskMaster();
+        const html = kanban.generateHtml();
+        
+        // Enviar a resposta com o HTML do quadro
+        return res.send(html);
+      } catch (error) {
+        console.error('Erro ao gerar o quadro Kanban:', error);
+        return res.status(500).send(`
+          <h1>Erro ao carregar o quadro Kanban</h1>
+          <p>Não foi possível carregar o quadro Kanban do TaskMaster.</p>
+          <p>Erro: ${error.message}</p>
+          <p><a href="/">Voltar</a></p>
+        `);
+      }
+    }
     
     // Página inicial simples
     const html = `
