@@ -64,96 +64,227 @@ export default async function handler(req, res) {
     // Rota para o quadro Kanban do TaskMaster
     if (url === '/taskmaster-kanban' || url.startsWith('/taskmaster-kanban?')) {
       try {
-        // HTML fixo para o quadro Kanban - simplificado para garantir que funcione
+        // HTML fixo para o quadro Kanban correspondendo ao design original do Windsurf Preview
         return res.send(`
           <!DOCTYPE html>
           <html lang="pt-BR">
             <head>
-              <title>Quadro Kanban do TaskMaster</title>
+              <title>Quadro Kanban TaskMaster</title>
               <meta charset="utf-8">
               <meta name="viewport" content="width=device-width, initial-scale=1">
               <style>
-                body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 1200px; margin: 0 auto; padding: 20px; }
-                h1 { color: #1a73e8; margin-bottom: 20px; }
-                .board { display: flex; gap: 20px; overflow-x: auto; padding-bottom: 20px; }
-                .column { background: #f5f5f5; border-radius: 8px; min-width: 300px; max-width: 300px; }
-                .column-header { padding: 12px; background: #1a73e8; color: white; border-radius: 8px 8px 0 0; }
-                .column-body { padding: 12px; max-height: 80vh; overflow-y: auto; }
-                .card { background: white; border-radius: 4px; padding: 12px; margin-bottom: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.12); }
-                .card h3 { margin-top: 0; font-size: 16px; }
-                .card p { font-size: 14px; color: #666; }
-                .priority-high { border-left: 4px solid #d32f2f; }
-                .priority-medium { border-left: 4px solid #fb8c00; }
-                .priority-low { border-left: 4px solid #388e3c; }
-                .subtasks { margin-top: 8px; padding-left: 16px; }
-                .subtask-item { font-size: 13px; margin-bottom: 4px; }
-                .status-done { text-decoration: line-through; opacity: 0.7; }
+                body { 
+                  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+                  max-width: 1200px; 
+                  margin: 0 auto; 
+                  padding: 20px; 
+                  background-color: #f9f9f9;
+                }
+                .header {
+                  display: flex;
+                  justify-content: space-between;
+                  align-items: center;
+                  margin-bottom: 20px;
+                }
+                h1 {
+                  color: #333;
+                  font-size: 24px;
+                  margin: 0;
+                }
+                .actions {
+                  display: flex;
+                  gap: 10px;
+                }
+                .btn {
+                  padding: 8px 12px;
+                  border-radius: 4px;
+                  border: none;
+                  font-size: 14px;
+                  cursor: pointer;
+                }
+                .btn-primary {
+                  background-color: #0d6efd;
+                  color: white;
+                }
+                .btn-light {
+                  background-color: #f8f9fa;
+                  border: 1px solid #dee2e6;
+                }
+                .board {
+                  display: flex;
+                  gap: 20px;
+                  overflow-x: auto;
+                  padding-bottom: 20px;
+                }
+                .column {
+                  flex: 1;
+                  min-width: 280px;
+                  max-width: 280px;
+                }
+                .column-header {
+                  display: flex;
+                  justify-content: space-between;
+                  align-items: center;
+                  padding: 10px 15px;
+                  border-bottom: 1px solid #eee;
+                  margin-bottom: 10px;
+                }
+                .column-title {
+                  font-weight: 600;
+                  color: #333;
+                }
+                .column-count {
+                  background-color: #f0f0f0;
+                  color: #333;
+                  border-radius: 12px;
+                  padding: 2px 8px;
+                  font-size: 12px;
+                }
+                .card {
+                  background: white;
+                  border-radius: 6px;
+                  padding: 12px;
+                  margin-bottom: 10px;
+                  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+                  border-top: 3px solid transparent;
+                  position: relative;
+                }
+                .card-title {
+                  font-weight: 600;
+                  margin-top: 0;
+                  margin-bottom: 8px;
+                  font-size: 14px;
+                }
+                .card-id {
+                  position: absolute;
+                  top: 10px;
+                  right: 10px;
+                  font-size: 11px;
+                  color: #888;
+                }
+                .card-desc {
+                  font-size: 13px;
+                  color: #555;
+                  margin-bottom: 12px;
+                }
+                .card-meta {
+                  display: flex;
+                  align-items: center;
+                  gap: 8px;
+                  font-size: 12px;
+                  color: #666;
+                }
+                .subtask-count {
+                  display: inline-flex;
+                  align-items: center;
+                  gap: 4px;
+                }
+                .priority {
+                  padding: 2px 6px;
+                  border-radius: 3px;
+                  font-size: 11px;
+                }
+                .priority-high {
+                  background-color: #fff2f2;
+                  color: #d32f2f;
+                  border-top-color: #d32f2f;
+                }
+                .priority-medium {
+                  background-color: #fff8e6;
+                  color: #ed6c02;
+                  border-top-color: #ed6c02;
+                }
+                .priority-low {
+                  background-color: #f6fff6;
+                  color: #2e7d32;
+                  border-top-color: #2e7d32;
+                }
+                .footer {
+                  margin-top: 20px; 
+                  text-align: center;
+                }
+                .footer a {
+                  color: #0d6efd; 
+                  text-decoration: none;
+                }
+                .footer a:hover {
+                  text-decoration: underline;
+                }
               </style>
             </head>
             <body>
-              <h1>Quadro Kanban do TaskMaster</h1>
+              <div class="header">
+                <h1>Quadro Kanban TaskMaster</h1>
+                <div class="actions">
+                  <button class="btn btn-light">Atualizar</button>
+                  <button class="btn btn-primary">Nova Tarefa</button>
+                </div>
+              </div>
+              
               <div class="board">
-                <!-- Coluna: Pendente -->
+                <!-- Coluna: A fazer -->
                 <div class="column">
-                  <div class="column-header">Pendente</div>
-                  <div class="column-body">
-                    <div class="card priority-high">
-                      <h3>Setup Database Schema and Supabase Integration</h3>
-                      <p>Design and implement the database schema in PostgreSQL via Supabase.</p>
+                  <div class="column-header">
+                    <span class="column-title">A fazer</span>
+                    <span class="column-count">1</span>
+                  </div>
+                  <div class="card priority-medium">
+                    <div class="card-id">#3</div>
+                    <h3 class="card-title">Integrar com Vercel</h3>
+                    <p class="card-desc">Deploy da aplicação na Vercel</p>
+                    <div class="card-meta">
+                      <span class="priority medium">medium</span>
                     </div>
                   </div>
                 </div>
                 
-                <!-- Coluna: Em Progresso -->
+                <!-- Coluna: Em andamento -->
                 <div class="column">
-                  <div class="column-header">Em Progresso</div>
-                  <div class="column-body">
-                    <div class="card priority-high">
-                      <h3>Implement Authentication System</h3>
-                      <p>Set up user authentication using NextAuth.js integrated with Supabase.</p>
-                      <div class="subtasks">
-                        <div class="subtask-item status-done">Configurar NextAuth.js com Supabase</div>
-                        <div class="subtask-item">Implementar formulário de login</div>
-                      </div>
-                    </div>
-                    <div class="card priority-medium">
-                      <h3>Implement Basic Kanban Board</h3>
-                      <p>Develop the core Kanban board functionality with customizable columns.</p>
-                      <div class="subtasks">
-                        <div class="subtask-item status-done">Implementar componente de quadro Kanban</div>
-                        <div class="subtask-item">Adicionar funcionalidade arrastar e soltar</div>
-                      </div>
+                  <div class="column-header">
+                    <span class="column-title">Em andamento</span>
+                    <span class="column-count">1</span>
+                  </div>
+                  <div class="card priority-high">
+                    <div class="card-id">#2</div>
+                    <h3 class="card-title">Implementar interface Kanban</h3>
+                    <p class="card-desc">Criar componente de visualização Kanban</p>
+                    <div class="card-meta">
+                      <span class="subtask-count">2 subtarefas</span>
+                      <span class="priority high">high</span>
                     </div>
                   </div>
+                </div>
+                
+                <!-- Coluna: Revisão -->
+                <div class="column">
+                  <div class="column-header">
+                    <span class="column-title">Revisão</span>
+                    <span class="column-count">0</span>
+                  </div>
+                  <!-- Sem tarefas nesta coluna -->
                 </div>
                 
                 <!-- Coluna: Concluído -->
                 <div class="column">
-                  <div class="column-header">Concluído</div>
-                  <div class="column-body">
-                    <div class="card priority-high">
-                      <h3>Setup Project Architecture</h3>
-                      <p>Initialize the project with Next.js 14, React, TypeScript, and Tailwind CSS.</p>
-                      <div class="subtasks">
-                        <div class="subtask-item status-done">Inicializar projeto Next.js com TypeScript</div>
-                        <div class="subtask-item status-done">Configurar Tailwind CSS e estilos globais</div>
-                      </div>
-                    </div>
-                    <div class="card priority-high">
-                      <h3>Integrar com Vercel</h3>
-                      <p>Configurar e realizar o deploy da aplicação na plataforma Vercel.</p>
-                      <div class="subtasks">
-                        <div class="subtask-item status-done">Configurar projeto na Vercel</div>
-                        <div class="subtask-item status-done">Resolver erro 500</div>
-                      </div>
+                  <div class="column-header">
+                    <span class="column-title">Concluído</span>
+                    <span class="column-count">1</span>
+                  </div>
+                  <div class="card priority-high">
+                    <div class="card-id">#1</div>
+                    <h3 class="card-title">Configurar ambiente</h3>
+                    <p class="card-desc">Configurar ambiente de desenvolvimento</p>
+                    <div class="card-meta">
+                      <span class="subtask-count">2 subtarefas</span>
+                      <span class="priority high">high</span>
                     </div>
                   </div>
                 </div>
               </div>
               
-              <p style="margin-top: 20px; text-align: center;">
-                <a href="/" style="color: #1a73e8; text-decoration: none;">Voltar para a página inicial</a>
-              </p>
+              <div class="footer">
+                <a href="/">Voltar para a página inicial</a>
+              </div>
             </body>
           </html>
         `);
