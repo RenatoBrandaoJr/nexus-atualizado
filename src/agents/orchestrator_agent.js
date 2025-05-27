@@ -1,5 +1,9 @@
 // src/agents/orchestrator_agent.js
 
+import ToolManager from '../utils/tool_manager.js';
+import { createLogger } from '../utils/logger.js';
+import { createMetrics } from '../utils/metrics.js';
+
 /**
  * OrchestratorAgent
  * 
@@ -9,14 +13,13 @@
 class OrchestratorAgent {
   constructor(config = {}) {
     this.config = {
-      maxTools: 50,
-      defaultContexts: ['core'],
+      defaultContexts: ['default', 'system'],
       ...config
     };
     
-    this.toolManager = require('../utils/tool_manager');
-    this.logger = require('../utils/logger')('OrchestratorAgent');
-    this.metrics = require('../utils/metrics')('OrchestratorAgent');
+    this.toolManager = new ToolManager();
+    this.logger = createLogger('OrchestratorAgent');
+    this.metrics = createMetrics('OrchestratorAgent');
     
     // Inicializar com contextos padrão
     this.toolManager.setActiveContexts(this.config.defaultContexts);
@@ -29,13 +32,24 @@ class OrchestratorAgent {
    * Inicializa o sistema e configura o ambiente
    */
   async initializeSystem(options = {}) {
-    this.logger.info('Inicializando sistema', { options });
-    
     try {
+      this.logger.info('Inicializando sistema', { options });
+      
       // Ativar ferramentas essenciais
       this.toolManager.activateEssentialTools();
       
+      // Carregar configurações usando importação dinâmica
+      const configModule = options.configPath 
+        ? await import(options.configPath) 
+        : await import('../config/default.js');
+      
+      const config = configModule.default;
+      
+      // Inicializar agentes
+      await this.initializeAgents(config.agents);
+      
       // Verificar configurações de segurança
+      // Agora que os agentes já foram inicializados
       const securityAgent = this.getAgent('SecurityAgent');
       const securityConfig = await securityAgent.verifySecurityConfig({
         environment: options.environment || process.env.NODE_ENV,
@@ -43,16 +57,10 @@ class OrchestratorAgent {
       });
       
       if (!securityConfig.valid) {
-        throw new Error(`Configuração de segurança inválida: ${securityConfig.reason}`);
+        const issues = securityConfig.issues || [];
+        const issuesText = issues.length > 0 ? `\n- ${issues.join('\n- ')}` : 'Configuração inválida sem detalhes';
+        throw new Error(`Configuração de segurança inválida: ${issuesText}`);
       }
-      
-      // Carregar configurações
-      const config = options.configPath 
-        ? require(options.configPath) 
-        : require('../config/default');
-      
-      // Inicializar agentes
-      await this.initializeAgents(config.agents);
       
       // Configurar canais de notificação
       const notificationAgent = this.getAgent('NotificationAgent');
@@ -81,8 +89,9 @@ class OrchestratorAgent {
     
     for (const [agentName, agentConfig] of Object.entries(agentConfigs)) {
       try {
-        // Importar classe do agente
-        const AgentClass = require(`./${agentConfig.module}`);
+        // Importar classe do agente usando importação dinâmica
+        const agentModule = await import(`./${agentConfig.module}.js`);
+        const AgentClass = agentModule.default;
         
         // Instanciar agente
         this.agents[agentName] = new AgentClass(agentConfig.options);
@@ -438,4 +447,4 @@ class OrchestratorAgent {
   }
 }
 
-module.exports = OrchestratorAgent;
+export default OrchestratorAgent;

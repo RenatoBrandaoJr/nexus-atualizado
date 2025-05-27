@@ -1,0 +1,94 @@
+{
+  "projectConfig": {
+    "name": "Nexus Project",
+    "description": "Projeto de integração do Nexus com TaskMaster",
+    "version": "1.0.0",
+    "defaultPriority": "medium",
+    "defaultTaskStatus": "pending",
+    "statusFlow": {
+      "pending": ["in-progress", "deferred", "cancelled"],
+      "in-progress": ["review", "pending", "cancelled"],
+      "review": ["done", "in-progress", "pending"],
+      "done": ["pending", "in-progress"],
+      "deferred": ["pending", "cancelled"],
+      "cancelled": ["pending"]
+    }
+  },
+  "kanbanIntegration": {
+    "enabled": true,
+    "statusToColumnMap": {
+      "pending": "A fazer",
+      "in-progress": "Em andamento",
+      "review": "Revisão",
+      "done": "Concluído",
+      "deferred": "Adiado",
+      "cancelled": "Cancelado"
+    },
+    "columnToStatusMap": {
+      "A fazer": "pending",
+      "Em andamento": "in-progress",
+      "Revisão": "review", 
+      "Concluído": "done",
+      "Adiado": "deferred",
+      "Cancelado": "cancelled"
+    },
+    "defaultBoard": "Tarefas do Projeto",
+    "autoCreateCards": true,
+    "syncInterval": 5000
+  },
+  "taskTemplates": {
+    "feature": {
+      "title": "Implementar {featureName}",
+      "description": "Desenvolver a funcionalidade {featureName}",
+      "details": "## Requisitos\n- {requirement1}\n- {requirement2}\n\n## Critérios de Aceitação\n- {criteria1}\n- {criteria2}\n\n## Implementação\n1. {step1}\n2. {step2}\n3. {step3}",
+      "testStrategy": "- Testes unitários\n- Testes de integração\n- Validação de UI",
+      "priority": "medium"
+    },
+    "bug": {
+      "title": "Corrigir {bugDescription}",
+      "description": "Resolver o problema: {bugDescription}",
+      "details": "## Problema\n{problemDescription}\n\n## Passos para Reproduzir\n1. {step1}\n2. {step2}\n\n## Comportamento Esperado\n{expectedBehavior}\n\n## Comportamento Atual\n{actualBehavior}",
+      "testStrategy": "- Verificar que o problema foi resolvido\n- Garantir que não houve regressões",
+      "priority": "high"
+    },
+    "documentation": {
+      "title": "Documentar {topic}",
+      "description": "Criar documentação para {topic}",
+      "details": "## Seções a Incluir\n- Visão Geral\n- Instalação\n- Uso\n- Exemplos\n- Referência da API\n\n## Formato\n- Markdown\n- Diagramas quando necessário\n\n## Público-Alvo\n- Desenvolvedores\n- Usuários finais",
+      "testStrategy": "- Revisão por pares\n- Verificação de links\n- Validação de exemplos",
+      "priority": "medium"
+    }
+  },
+  "eventHandlers": {
+    "onTaskStatusChange": true,
+    "onTaskCreate": true,
+    "onTaskUpdate": true,
+    "onTaskDelete": true,
+    "onSubtaskCreate": true
+  },
+  "notifications": {
+    "enabled": true,
+    "channels": ["console", "system"],
+    "events": {
+      "taskStatusChange": true,
+      "taskAssigned": true,
+      "taskDueSoon": true,
+      "subtasksCompleted": true
+    }
+  },
+  "customFields": {
+    "estimatedHours": {
+      "type": "number",
+      "defaultValue": 4,
+      "description": "Estimativa de horas para completar a tarefa"
+    },
+    "component": {
+      "type": "string",
+      "description": "Componente do sistema relacionado à tarefa"
+    },
+    "reviewedBy": {
+      "type": "string",
+      "description": "Pessoa que revisou a tarefa"
+    }
+  }
+}

@@ -6,6 +6,19 @@
  * Responsável por gerenciar a criação, atualização e organização de documentação.
  * Automatiza a geração de documentação a partir de código-fonte, designs e outros artefatos.
  */
+
+import ToolManager from '../utils/tool_manager.js';
+import { createLogger } from '../utils/logger.js';
+import { createMetrics } from '../utils/metrics.js';
+
+// Importar adaptadores MCP
+import supabaseMCP from '../mcps/supabase_adapter.js';
+import githubMCP from '../mcps/github_adapter.js';
+import figmaMCP from '../mcps/figma_adapter.js';
+import puppeteerMCP from '../mcps/puppeteer_adapter.js';
+import sequentialThinkingMCP from '../mcps/sequential_thinking_adapter.js';
+import taskmasterMCP from '../mcps/taskmaster_claude_adapter.js';
+
 class DocumentAgent {
   constructor(config = {}) {
     this.config = {
@@ -15,16 +28,299 @@ class DocumentAgent {
       ...config
     };
     
-    this.logger = require('../utils/logger')('DocumentAgent');
-    this.metrics = require('../utils/metrics')('DocumentAgent');
+    this.toolManager = new ToolManager();
+    this.logger = createLogger('DocumentAgent');
+    this.metrics = createMetrics('DocumentAgent');
     
     // Adaptadores MCP
-    this.supabaseMCP = require('../mcps/supabase_adapter');
-    this.githubMCP = require('../mcps/github_adapter');
-    this.figmaMCP = require('../mcps/figma_adapter');
-    this.puppeteerMCP = require('../mcps/puppeteer_adapter');
-    this.sequentialThinkingMCP = require('../mcps/sequential_thinking_adapter');
-    this.taskmasterMCP = require('../mcps/taskmaster_claude_adapter');
+    this.supabaseMCP = supabaseMCP;
+    this.githubMCP = githubMCP;
+    this.figmaMCP = figmaMCP;
+    this.puppeteerMCP = puppeteerMCP;
+    this.sequentialThinkingMCP = sequentialThinkingMCP;
+    this.taskmasterMCP = taskmasterMCP;
+    
+    // Inicializar ferramentas
+    this.initializeTools();
+    
+    console.log('DocumentAgent inicializado com sucesso');
+  }
+  
+  /**
+   * Inicializa as ferramentas utilizadas pelo agente
+   */
+  initializeTools() {
+    // Ferramenta para extrair documentação de código-fonte
+    this.toolManager.registerTool('document:extractFromCode', async (params) => {
+      this.logger.info('Extraindo documentação do código-fonte', params);
+      return await this.extractDocumentationFromCode(params.repository, params.options);
+    });
+    
+    // Ferramenta para extrair documentação de design
+    this.toolManager.registerTool('document:extractFromDesign', async (params) => {
+      this.logger.info('Extraindo documentação de design', params);
+      return await this.extractDocumentationFromDesign(params.fileId, params.options);
+    });
+    
+    // Ferramenta para gerar documentação a partir de tarefas
+    this.toolManager.registerTool('document:generateFromTasks', async (params) => {
+      this.logger.info('Gerando documentação a partir de tarefas', params);
+      return await this.generateDocumentationFromTasks(params.projectId, params.options);
+    });
+    
+    // Ferramenta para gerar documentação de API
+    this.toolManager.registerTool('document:generateApiDocs', async (params) => {
+      this.logger.info('Gerando documentação de API', params);
+      return await this.generateApiDocumentation(params.source, params.options);
+    });
+    
+    // Ferramenta para publicar documentação
+    this.toolManager.registerTool('document:publish', async (params) => {
+      this.logger.info('Publicando documentação', params);
+      return await this.publishDocumentation(params.documentation, params.destination, params.options);
+    });
+  }
+  
+  /**
+   * Extrai documentação a partir de código-fonte
+   */
+  async extractDocumentationFromCode(repository, options = {}) {
+    this.logger.info(`Extraindo documentação do repositório: ${repository}`, options);
+    this.metrics.increment('documentation.extract.code');
+    
+    try {
+      // Usar o adaptador do GitHub para extrair documentação
+      const result = await this.githubMCP.extractDocumentation(repository, options);
+      
+      // Processar e estruturar a documentação
+      const documentation = {
+        source: 'code',
+        repository,
+        title: `Documentação: ${result.repository.name}`,
+        sections: [],
+        generatedAt: new Date().toISOString()
+      };
+      
+      // Adicionar seções baseadas nos documentos extraídos
+      if (result.documents && result.documents.length > 0) {
+        documentation.sections = result.documents.map(doc => ({
+          title: doc.title,
+          content: doc.content,
+          path: doc.path,
+          url: doc.url
+        }));
+      }
+      
+      this.logger.info(`Documentação extraída com sucesso: ${documentation.sections.length} seções`);
+      return documentation;
+    } catch (error) {
+      this.logger.error(`Erro ao extrair documentação do código: ${error.message}`, { error });
+      this.metrics.increment('documentation.extract.code.error');
+      throw error;
+    }
+  }
+  
+  /**
+   * Extrai documentação a partir de designs no Figma
+   */
+  async extractDocumentationFromDesign(fileId, options = {}) {
+    this.logger.info(`Extraindo documentação do design: ${fileId}`, options);
+    this.metrics.increment('documentation.extract.design');
+    
+    try {
+      // Usar o adaptador do Figma para extrair documentação
+      const result = await this.figmaMCP.extractDocumentation(fileId, options);
+      
+      this.logger.info(`Documentação de design extraída com sucesso: ${result.sections.length} seções`);
+      return {
+        source: 'design',
+        fileId,
+        title: result.title,
+        sections: result.sections,
+        components: result.components,
+        generatedAt: new Date().toISOString()
+      };
+    } catch (error) {
+      this.logger.error(`Erro ao extrair documentação do design: ${error.message}`, { error });
+      this.metrics.increment('documentation.extract.design.error');
+      throw error;
+    }
+  }
+  
+  /**
+   * Gera documentação a partir de tarefas do projeto
+   */
+  async generateDocumentationFromTasks(projectId, options = {}) {
+    this.logger.info(`Gerando documentação a partir de tarefas do projeto: ${projectId}`, options);
+    this.metrics.increment('documentation.generate.tasks');
+    
+    try {
+      // Usar o adaptador do TaskMaster para gerar documentação
+      const result = await this.taskmasterMCP.generateDocumentation(projectId, {
+        format: this.config.defaultFormat,
+        ...options
+      });
+      
+      this.logger.info(`Documentação gerada com sucesso para o projeto: ${result.project.name}`);
+      return {
+        source: 'tasks',
+        projectId,
+        title: `Documentação do Projeto: ${result.project.name}`,
+        content: result.documentation.content,
+        format: result.documentation.format,
+        generatedAt: result.documentation.generatedAt
+      };
+    } catch (error) {
+      this.logger.error(`Erro ao gerar documentação a partir de tarefas: ${error.message}`, { error });
+      this.metrics.increment('documentation.generate.tasks.error');
+      throw error;
+    }
+  }
+  
+  /**
+   * Gera documentação de API
+   */
+  async generateApiDocumentation(source, options = {}) {
+    this.logger.info(`Gerando documentação de API a partir de: ${source.type}`, options);
+    this.metrics.increment('documentation.generate.api');
+    
+    try {
+      let apiDoc = {
+        title: options.title || 'Documentação da API',
+        version: options.version || '1.0.0',
+        description: options.description || 'Documentação gerada automaticamente',
+        endpoints: [],
+        schemas: [],
+        generatedAt: new Date().toISOString()
+      };
+      
+      // Processar conforme o tipo de fonte
+      switch(source.type) {
+        case 'code':
+          // Simular extração de endpoints de código
+          apiDoc.endpoints = [
+            {
+              path: '/api/users',
+              method: 'GET',
+              summary: 'Lista todos os usuários',
+              parameters: [],
+              responses: [
+                { code: 200, description: 'Sucesso', schema: 'UserList' }
+              ]
+            },
+            {
+              path: '/api/users/{id}',
+              method: 'GET',
+              summary: 'Obtém um usuário pelo ID',
+              parameters: [
+                { name: 'id', in: 'path', required: true, type: 'string', description: 'ID do usuário' }
+              ],
+              responses: [
+                { code: 200, description: 'Sucesso', schema: 'User' },
+                { code: 404, description: 'Usuário não encontrado' }
+              ]
+            }
+          ];
+          
+          apiDoc.schemas = [
+            {
+              name: 'User',
+              properties: [
+                { name: 'id', type: 'string', description: 'ID do usuário' },
+                { name: 'name', type: 'string', description: 'Nome do usuário' },
+                { name: 'email', type: 'string', description: 'Email do usuário' }
+              ]
+            },
+            {
+              name: 'UserList',
+              properties: [
+                { name: 'users', type: 'array', items: 'User', description: 'Lista de usuários' }
+              ]
+            }
+          ];
+          break;
+          
+        case 'openapi':
+          // Processar documento OpenAPI existente
+          apiDoc = {
+            ...apiDoc,
+            title: source.spec.info.title || apiDoc.title,
+            version: source.spec.info.version || apiDoc.version,
+            description: source.spec.info.description || apiDoc.description,
+            // Processamento real seria mais complexo
+            endpoints: [], 
+            schemas: []
+          };
+          break;
+          
+        default:
+          throw new Error(`Tipo de fonte não suportado: ${source.type}`);
+      }
+      
+      this.logger.info(`Documentação de API gerada com sucesso: ${apiDoc.endpoints.length} endpoints`);
+      return apiDoc;
+    } catch (error) {
+      this.logger.error(`Erro ao gerar documentação de API: ${error.message}`, { error });
+      this.metrics.increment('documentation.generate.api.error');
+      throw error;
+    }
+  }
+  
+  /**
+   * Publica documentação no destino especificado
+   */
+  async publishDocumentation(documentation, destination, options = {}) {
+    this.logger.info(`Publicando documentação em: ${destination.type}`, options);
+    this.metrics.increment('documentation.publish');
+    
+    try {
+      let result;
+      
+      switch(destination.type) {
+        case 'github':
+          // Publicar no GitHub
+          result = await this.githubMCP.createOrUpdateFile(
+            destination.repository,
+            destination.path,
+            typeof documentation.content === 'string' ? documentation.content : JSON.stringify(documentation, null, 2),
+            options.commitMessage || `Atualização da documentação: ${documentation.title}`,
+            destination.branch || 'main'
+          );
+          
+          return {
+            success: true,
+            url: result.content.html_url,
+            commit: result.commit.html_url,
+            publishedAt: new Date().toISOString()
+          };
+          
+        case 'supabase':
+          // Salvar no Supabase
+          result = await this.supabaseMCP.saveDocument({
+            title: documentation.title,
+            content: typeof documentation.content === 'string' ? documentation.content : JSON.stringify(documentation, null, 2),
+            format: documentation.format || this.config.defaultFormat,
+            path: destination.path,
+            metadata: {
+              source: documentation.source,
+              generatedAt: documentation.generatedAt
+            }
+          });
+          
+          return {
+            success: true,
+            documentId: result.id,
+            publishedAt: new Date().toISOString()
+          };
+          
+        default:
+          throw new Error(`Tipo de destino não suportado: ${destination.type}`);
+      }
+    } catch (error) {
+      this.logger.error(`Erro ao publicar documentação: ${error.message}`, { error });
+      this.metrics.increment('documentation.publish.error');
+      throw error;
+    }
   }
   
   /**
@@ -869,4 +1165,4 @@ class DocumentAgent {
   }
 }
 
-module.exports = DocumentAgent;
+export default DocumentAgent;
