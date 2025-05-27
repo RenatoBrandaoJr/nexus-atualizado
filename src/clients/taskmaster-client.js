@@ -5,13 +5,13 @@
  * tanto via CLI (diretamente) quanto via API REST (quando disponível).
  */
 
-const path = require('path');
-const fs = require('fs').promises;
-const { exec } = require('child_process');
-const util = require('util');
-const axios = require('axios');
+import path from 'path';
+import { promises as fs } from 'fs';
+import { exec as execCallback } from 'child_process';
+import { promisify } from 'util';
+import axios from 'axios';
 
-const execPromise = util.promisify(exec);
+const execPromise = promisify(execCallback);
 
 class TaskMasterClient {
   constructor(options = {}) {
@@ -286,4 +286,4 @@ class TaskMasterClient {
   }
 }
 
-module.exports = { TaskMasterClient };
+export { TaskMasterClient };

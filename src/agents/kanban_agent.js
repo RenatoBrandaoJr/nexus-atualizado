@@ -15,6 +15,10 @@ const { SecurityAgent } = require('./security_agent');
 const { ProjectManagerAgent } = require('./project_manager_agent');
 const path = require('path');
 const fs = require('fs').promises;
+const axios = require('axios');
+const { exec } = require('child_process');
+const util = require('util');
+const execPromise = util.promisify(exec);
 
 class KanbanAgent {
   constructor() {
@@ -31,6 +35,11 @@ class KanbanAgent {
     // Configurações do TaskMaster
     this.taskMasterEnabled = process.env.TASKMASTER_ENABLED === 'true';
     this.taskMasterPath = process.env.TASKMASTER_PATH || path.resolve(process.cwd());
+    this.taskMasterApiUrl = process.env.TASKMASTER_API_URL || 'http://localhost:3000/api/taskmaster';
+    this.taskMasterDataPath = path.join(this.taskMasterPath, 'tasks');
+    this.taskMasterConfigFile = path.join(this.taskMasterPath, 'tasks', 'tasks.json');
+    
+    // Mapeamento entre status do TaskMaster e colunas do Kanban
     this.statusToColumnMap = {
       'pending': 'A fazer',
       'in-progress': 'Em andamento',
@@ -40,11 +49,33 @@ class KanbanAgent {
       'cancelled': 'Cancelado'
     };
     
+    // Configurações do quadro Kanban do TaskMaster
+    this.taskMasterBoardConfig = {
+      id: 'taskmaster-board',
+      title: 'Tarefas TaskMaster',
+      description: 'Quadro Kanban para visualização e gerenciamento das tarefas do TaskMaster',
+      columns: [
+        { id: 'a-fazer', title: 'A fazer', wip: 10, color: '#e2f2ff' },
+        { id: 'em-andamento', title: 'Em andamento', wip: 5, color: '#fff8e2' },
+        { id: 'revisao', title: 'Revisão', wip: 3, color: '#e6f4ea' },
+        { id: 'concluido', title: 'Concluído', wip: 0, color: '#e6c9ff' },
+        { id: 'adiado', title: 'Adiado', wip: 0, color: '#f5f5f5' },
+        { id: 'cancelado', title: 'Cancelado', wip: 0, color: '#fbe2e2' }
+      ],
+      autoSync: true,
+      syncInterval: 60 // segundos
+    };
+    
     // Inicializar ferramentas necessárias
     this.initializeTools();
     
     // Registrar handlers de eventos
     this.registerEventHandlers();
+    
+    // Inicializar quadro Kanban do TaskMaster se estiver habilitado
+    if (this.taskMasterEnabled) {
+      this.initializeTaskMasterKanban();
+    }
     
     console.log('KanbanAgent inicializado com sucesso');
   }
@@ -67,6 +98,9 @@ class KanbanAgent {
     // Registrar ferramentas para TaskMaster
     this.toolManager.registerTool('taskmaster:task:list');
     this.toolManager.registerTool('taskmaster:task:status');
+    this.toolManager.registerTool('taskmaster:task:get');
+    this.toolManager.registerTool('taskmaster:task:set-status');
+    this.toolManager.registerTool('taskmaster:task:analyze');
     
     // Registrar ferramentas do Figma para templates visuais
     this.toolManager.registerTool('figma:export');
@@ -98,6 +132,7 @@ class KanbanAgent {
     // Registrar handlers para eventos do TaskMaster
     this.toolManager.eventEmitter.on('taskmaster:task:updated', this.handleTaskMasterTaskUpdated.bind(this));
     this.toolManager.eventEmitter.on('taskmaster:task:created', this.handleTaskMasterTaskCreated.bind(this));
+    this.toolManager.eventEmitter.on('taskmaster:task:status:changed', this.handleTaskStatusChanged.bind(this));
     this.toolManager.on('card:updated', this.handleCardUpdated.bind(this));
     this.toolManager.on('card:moved', this.handleCardMoved.bind(this));
     

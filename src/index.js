@@ -1,10 +1,57 @@
 /**
- * Função serverless para o Nexus no ambiente Vercel
+ * Nexus - Sistema Inteligente
  * 
- * Versão simplificada para resolver o erro 500 INTERNAL_SERVER_ERROR
+ * Este arquivo é configurado para funcionar tanto como:
+ * 1. Função serverless no ambiente Vercel 
+ * 2. Servidor Express em ambiente de desenvolvimento local
  */
 
-module.exports = (req, res) => {
+import express from 'express';
+import { TaskMasterKanban } from './components/taskmaster-kanban.js';
+
+// Iniciando o servidor Express
+const app = express();
+const port = 3001;
+
+// Rota principal que exibe a mensagem
+app.get('/', (req, res) => {
+  res.send(`
+    <h1>Servidor de webhook funcionando</h1>
+    <p>Esta mensagem confirma que o servidor está rodando na porta 3001.</p>
+    <p><a href="/taskmaster-kanban" style="padding: 10px; background-color: #4CAF50; color: white; text-decoration: none; border-radius: 4px;">Visualizar Quadro Kanban do TaskMaster</a></p>
+  `);
+});
+
+// Rota para o quadro Kanban do TaskMaster
+app.get('/taskmaster-kanban', async (req, res) => {
+  try {
+    // Criar uma instância do componente Kanban
+    const kanban = new TaskMasterKanban();
+    
+    // Sincronizar com o TaskMaster e gerar o HTML do quadro
+    await kanban.syncWithTaskMaster();
+    const html = kanban.generateHtml();
+    
+    // Enviar a resposta com o HTML do quadro
+    res.send(html);
+  } catch (error) {
+    console.error('Erro ao gerar o quadro Kanban:', error);
+    res.status(500).send(`
+      <h1>Erro ao carregar o quadro Kanban</h1>
+      <p>Não foi possível carregar o quadro Kanban do TaskMaster.</p>
+      <p>Erro: ${error.message}</p>
+      <p><a href="/">Voltar</a></p>
+    `);
+  }
+});
+
+// Iniciar o servidor Express
+app.listen(port, () => {
+  console.log(`Servidor rodando em http://localhost:${port}`);
+});
+
+// Função handler para ambiente serverless (Vercel)
+export default function handler(req, res) {
   try {
     // Definir cabeçalhos básicos
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
@@ -136,3 +183,20 @@ module.exports = (req, res) => {
     `);
   }
 };
+
+// Verifica se está sendo executado diretamente (ambiente local)
+// Este código só será executado em ambiente de desenvolvimento, não na Vercel
+if (import.meta.url.includes(process.argv[1])) {
+  const app = express();
+  const port = 3001;
+  
+  // Rota principal
+  app.get('/', (req, res) => {
+    res.send('<h1>Servidor de webhook funcionando</h1><p>Esta mensagem confirma que o servidor está funcionando corretamente.</p>');
+  });
+  
+  // Iniciar o servidor
+  app.listen(port, () => {
+    console.log(`Servidor iniciado em http://localhost:${port}`);
+  });
+}
