@@ -72,8 +72,21 @@ export default async function handler(req, res) {
               <title>Quadro Kanban TaskMaster</title>
               <meta charset="utf-8">
               <meta name="viewport" content="width=device-width, initial-scale=1">
-              <!-- Incluir a biblioteca Sortable.js para arrastar e soltar -->
+              <!-- Incluir a biblioteca Sortable.js para arrastar e soltar de múltiplas fontes para garantir compatibilidade -->
               <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+              <script>
+                // Verificar se o Sortable foi carregado corretamente, caso contrário, tentar outra fonte
+                setTimeout(function() {
+                  if (typeof Sortable === 'undefined') {
+                    console.log('Sortable não foi carregado da primeira fonte, tentando alternativa...');
+                    var script = document.createElement('script');
+                    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.14.0/Sortable.min.js';
+                    document.head.appendChild(script);
+                  } else {
+                    console.log('Sortable carregado com sucesso!');
+                  }
+                }, 500);
+              </script>
               
               <style>
                 body { 
