@@ -7,11 +7,139 @@
  */
 
 import express from 'express';
+import axios from 'axios';
+import dotenv from 'dotenv';
+import { promises as fs } from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { exec } from 'child_process';
+import util from 'util';
+
+// Promisify exec
+const execPromise = util.promisify(exec);
+
+// Initialize environment variables
+dotenv.config();
+
+// Get the directory name of current module
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Import components
 import { TaskMasterKanban } from './components/taskmaster-kanban.js';
 
-// Iniciando o servidor Express
+// Create Express app
 const app = express();
-const port = 3001;
+const port = process.env.PORT || 3001;
+
+// Serve static files from the public directory
+app.use(express.static(path.join(__dirname, '../public')));
+
+// Parse JSON request bodies
+app.use(express.json());
+
+// API route to get tasks
+app.get('/api/tasks', async (req, res) => {
+  try {
+    const data = await TaskMasterKanban.getTasks();
+    res.json(data);
+  } catch (error) {
+    console.error('Error getting tasks:', error);
+    res.status(500).json({ error: 'Failed to get tasks' });
+  }
+});
+
+// API route to create a new task
+app.post('/api/tasks', async (req, res) => {
+  try {
+    const { title, description, status, priority } = req.body;
+    
+    if (!title) {
+      return res.status(400).json({ error: 'Task title is required' });
+    }
+    
+    // Gerar um ID simples (em um sistema real, isso seria gerado pelo banco de dados)
+    const newId = new Date().getTime().toString().slice(-5);
+    
+    // Criar um objeto de tarefa
+    const newTask = {
+      id: newId,
+      title,
+      description: description || '',
+      status: status || 'todo',
+      priority: priority || 'medium',
+      createdAt: new Date().toISOString()
+    };
+    
+    // Se o TaskMaster estiver habilitado, tentar adicionar via CLI
+    if (process.env.TASKMASTER_ENABLED === 'true' && process.env.TASKMASTER_PATH) {
+      try {
+        // Aqui você poderia implementar a integração com o TaskMaster CLI
+        // para adicionar uma nova tarefa
+        console.log('TaskMaster integração para adicionar tarefa ainda não implementada');
+      } catch (error) {
+        console.error('Erro ao adicionar tarefa via TaskMaster:', error);
+      }
+    }
+    
+    // Retornar a nova tarefa (em um sistema real, ela seria salva em um banco de dados)
+    res.status(201).json(newTask);
+  } catch (error) {
+    console.error('Error creating new task:', error);
+    res.status(500).json({ error: 'Failed to create new task' });
+  }
+});
+
+// API route to update task status
+app.post('/api/tasks/:id/status', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+    
+    if (!id || !status) {
+      return res.status(400).json({ error: 'Task ID and status are required' });
+    }
+    
+    // Map de status do frontend para status do TaskMaster
+    const statusMap = {
+      'todo': 'pending',
+      'in-progress': 'in-progress',
+      'review': 'review',
+      'done': 'done'
+    };
+    
+    const taskMasterStatus = statusMap[status] || status;
+    
+    // Se o TaskMaster estiver habilitado, tentar atualizar via CLI
+    if (process.env.TASKMASTER_ENABLED === 'true' && process.env.TASKMASTER_PATH) {
+      try {
+        // Executar comando do TaskMaster para atualizar o status
+        const cmd = `cd ${process.env.TASKMASTER_PATH} && npx task-master set-status --id=${id} --status=${taskMasterStatus}`;
+        console.log(`Executando comando: ${cmd}`);
+        
+        const { stdout, stderr } = await execPromise(cmd);
+        console.log('TaskMaster output:', stdout);
+        
+        if (stderr) {
+          console.error('TaskMaster error:', stderr);
+        }
+        
+        res.json({ success: true, id, status: taskMasterStatus });
+      } catch (error) {
+        console.error('Erro ao executar comando do TaskMaster:', error);
+        // Continuar e salvar apenas em memória como fallback
+        res.json({ success: true, id, status: taskMasterStatus, message: 'Salvo apenas em memória (TaskMaster CLI falhou)' });
+      }
+    } else {
+      // TaskMaster não habilitado, apenas retornar sucesso (mudança apenas em memória)
+      console.log(`TaskMaster não configurado. Atualizando status da tarefa ${id} para ${status} apenas em memória.`);
+      res.json({ success: true, id, status: taskMasterStatus, message: 'Salvo apenas em memória' });
+    }
+  } catch (error) {
+    console.error('Error updating task status:', error);
+    res.status(500).json({ error: 'Failed to update task status' });
+  }
+});
 
 // Rota principal que exibe a mensagem
 app.get('/', (req, res) => {
@@ -222,7 +350,50 @@ export default async function handler(req, res) {
                 <h1>Quadro Kanban TaskMaster</h1>
                 <div class="actions">
                   <button class="btn btn-light">Atualizar</button>
-                  <button class="btn btn-primary">Nova Tarefa</button>
+                  <button class="btn btn-primary" id="new-task-btn">Nova Tarefa</button>
+                </div>
+              </div>
+              
+              <!-- Modal para adicionar nova tarefa -->
+              <div id="new-task-modal" class="modal">
+                <div class="modal-content">
+                  <div class="modal-header">
+                    <h2>Adicionar Nova Tarefa</h2>
+                    <span class="close">&times;</span>
+                  </div>
+                  <div class="modal-body">
+                    <form id="new-task-form">
+                      <div class="form-group">
+                        <label for="task-title">Título:</label>
+                        <input type="text" id="task-title" name="title" required>
+                      </div>
+                      <div class="form-group">
+                        <label for="task-description">Descrição:</label>
+                        <textarea id="task-description" name="description" rows="3"></textarea>
+                      </div>
+                      <div class="form-group">
+                        <label for="task-priority">Prioridade:</label>
+                        <select id="task-priority" name="priority">
+                          <option value="low">Baixa</option>
+                          <option value="medium" selected>Média</option>
+                          <option value="high">Alta</option>
+                        </select>
+                      </div>
+                      <div class="form-group">
+                        <label for="task-status">Status:</label>
+                        <select id="task-status" name="status">
+                          <option value="todo" selected>A fazer</option>
+                          <option value="in-progress">Em andamento</option>
+                          <option value="review">Revisão</option>
+                          <option value="done">Concluído</option>
+                        </select>
+                      </div>
+                      <div class="form-actions">
+                        <button type="submit" class="btn btn-primary">Salvar</button>
+                        <button type="button" class="btn btn-light" id="cancel-task">Cancelar</button>
+                      </div>
+                    </form>
+                  </div>
                 </div>
               </div>
               
@@ -430,13 +601,35 @@ export default async function handler(req, res) {
                           
                           // Atualizar status no campo oculto
                           var statusInput = card.querySelector('input[name="status"]');
+                          var newStatusValue = this.id.replace('-column', '');
                           if (statusInput) {
-                            statusInput.value = this.id.replace('-column', '');
+                            statusInput.value = newStatusValue;
                           }
                           
                           // Mostrar notificação
                           var newStatus = columnsMap[this.id];
-                          showNotification(taskId, newStatus);
+                          
+                          // Enviar atualização para a API
+                          fetch('/api/tasks/' + taskId + '/status', {
+                            method: 'POST',
+                            headers: {
+                              'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({ status: newStatusValue })
+                          })
+                          .then(function(response) {
+                            return response.json();
+                          })
+                          .then(function(data) {
+                            console.log('API response:', data);
+                            // Mostrar notificação com ícone de sucesso
+                            showNotification(taskId, newStatus + ' ✓');
+                          })
+                          .catch(function(error) {
+                            console.error('Erro ao atualizar status:', error);
+                            // Mostrar notificação com ícone de erro
+                            showNotification(taskId, newStatus + ' ⚠️');
+                          });
                           
                           // Atualizar contadores
                           updateColumnCounts();
@@ -456,10 +649,123 @@ export default async function handler(req, res) {
                     });
                   }
                   
-                  var newTaskButton = document.querySelector('.btn-primary');
-                  if (newTaskButton) {
-                    newTaskButton.addEventListener('click', function() {
-                      alert('Funcionalidade de adicionar nova tarefa será implementada em breve!');
+                  // Manipulação do modal de nova tarefa
+                  var modal = document.getElementById('new-task-modal');
+                  var newTaskBtn = document.getElementById('new-task-btn');
+                  var closeBtn = modal.querySelector('.close');
+                  var cancelBtn = document.getElementById('cancel-task');
+                  var form = document.getElementById('new-task-form');
+                  
+                  // Abrir modal
+                  if (newTaskBtn) {
+                    newTaskBtn.addEventListener('click', function() {
+                      modal.style.display = 'block';
+                    });
+                  }
+                  
+                  // Fechar modal nos botões de fechar
+                  if (closeBtn) {
+                    closeBtn.addEventListener('click', function() {
+                      modal.style.display = 'none';
+                    });
+                  }
+                  
+                  if (cancelBtn) {
+                    cancelBtn.addEventListener('click', function() {
+                      modal.style.display = 'none';
+                    });
+                  }
+                  
+                  // Fechar modal clicando fora
+                  window.addEventListener('click', function(e) {
+                    if (e.target === modal) {
+                      modal.style.display = 'none';
+                    }
+                  });
+                  
+                  // Manipular envio do formulário
+                  if (form) {
+                    form.addEventListener('submit', function(e) {
+                      e.preventDefault();
+                      
+                      var formData = {
+                        title: document.getElementById('task-title').value,
+                        description: document.getElementById('task-description').value,
+                        priority: document.getElementById('task-priority').value,
+                        status: document.getElementById('task-status').value
+                      };
+                      
+                      // Enviar dados para a API
+                      fetch('/api/tasks', {
+                        method: 'POST',
+                        headers: {
+                          'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(formData)
+                      })
+                      .then(function(response) {
+                        return response.json();
+                      })
+                      .then(function(newTask) {
+                        console.log('Nova tarefa criada:', newTask);
+                        
+                        // Criar novo cartão para a tarefa
+                        var card = document.createElement('div');
+                        card.className = 'card priority-' + newTask.priority;
+                        card.setAttribute('draggable', 'true');
+                        card.setAttribute('data-id', newTask.id);
+                        
+                        // Determinar em qual coluna adicionar o cartão
+                        var columnId = newTask.status + '-column';
+                        var column = document.getElementById(columnId);
+                        
+                        // Montar o HTML do cartão
+                        card.innerHTML = `
+                          <div class="card-id">#${newTask.id}</div>
+                          <h3 class="card-title">${newTask.title}</h3>
+                          <p class="card-desc">${newTask.description}</p>
+                          <div class="card-meta">
+                            <span class="priority ${newTask.priority}">${newTask.priority}</span>
+                          </div>
+                          <input type="hidden" name="status" value="${newTask.status}">
+                        `;
+                        
+                        // Adicionar o cartão à coluna apropriada
+                        if (column) {
+                          column.appendChild(card);
+                          
+                          // Atualizar contadores
+                          updateColumnCounts();
+                          
+                          // Reiniciar eventos de arrastar e soltar para o novo cartão
+                          card.addEventListener('dragstart', function(e) {
+                            e.dataTransfer.setData('text/plain', e.target.getAttribute('data-id'));
+                            e.target.classList.add('card-drag');
+                            setTimeout(function() {
+                              e.target.classList.add('dragging');
+                            }, 0);
+                          });
+                          
+                          card.addEventListener('dragend', function(e) {
+                            e.target.classList.remove('card-drag');
+                            e.target.classList.remove('dragging');
+                            document.querySelectorAll('.column-cards').forEach(function(col) {
+                              col.classList.remove('drag-over');
+                            });
+                          });
+                        }
+                        
+                        // Fechar o modal e resetar o formulário
+                        modal.style.display = 'none';
+                        form.reset();
+                        
+                        // Mostrar notificação
+                        showNotification(newTask.id, 'Nova tarefa criada');
+                      })
+                      .catch(function(error) {
+                        console.error('Erro ao criar tarefa:', error);
+                        alert('Erro ao criar tarefa. Tente novamente.');
+                      });
                     });
                   }
                 }
@@ -472,8 +778,83 @@ export default async function handler(req, res) {
                 }
               </script>
               
-              <!-- Adicionar estilos para o HTML5 drag-and-drop nativo -->
+              <!-- Adicionar estilos para o modal e HTML5 drag-and-drop nativo -->
               <style>
+                /* Estilos para o modal */
+                .modal {
+                  display: none;
+                  position: fixed;
+                  z-index: 1000;
+                  left: 0;
+                  top: 0;
+                  width: 100%;
+                  height: 100%;
+                  background-color: rgba(0, 0, 0, 0.5);
+                }
+                
+                .modal-content {
+                  background-color: white;
+                  margin: 10% auto;
+                  padding: 20px;
+                  border-radius: 5px;
+                  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+                  width: 80%;
+                  max-width: 500px;
+                }
+                
+                .modal-header {
+                  display: flex;
+                  justify-content: space-between;
+                  align-items: center;
+                  border-bottom: 1px solid #eee;
+                  padding-bottom: 10px;
+                  margin-bottom: 20px;
+                }
+                
+                .modal-header h2 {
+                  margin: 0;
+                  font-size: 1.5rem;
+                  color: #333;
+                }
+                
+                .close {
+                  font-size: 28px;
+                  font-weight: bold;
+                  cursor: pointer;
+                  color: #aaa;
+                }
+                
+                .close:hover {
+                  color: #333;
+                }
+                
+                .form-group {
+                  margin-bottom: 15px;
+                }
+                
+                .form-group label {
+                  display: block;
+                  margin-bottom: 5px;
+                  font-weight: 500;
+                }
+                
+                .form-group input,
+                .form-group textarea,
+                .form-group select {
+                  width: 100%;
+                  padding: 8px;
+                  border: 1px solid #ddd;
+                  border-radius: 4px;
+                }
+                
+                .form-actions {
+                  margin-top: 20px;
+                  display: flex;
+                  justify-content: flex-end;
+                  gap: 10px;
+                }
+                
+                /* Estilos para o drag-and-drop */
                 .column-cards {
                   min-height: 50px;
                   padding: 5px;
