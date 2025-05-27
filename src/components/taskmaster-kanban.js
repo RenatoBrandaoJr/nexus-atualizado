@@ -276,33 +276,67 @@ class TaskMasterKanban {
     return [
       {
         id: '1',
-        title: 'Configurar ambiente',
-        description: 'Configurar ambiente de desenvolvimento',
+        title: 'Setup Project Architecture and Repository',
+        description: 'Initialize the project repository with Next.js 14 (App Router), React, TypeScript, and Tailwind CSS. Configure the development environment and establish the basic project structure.',
+        details: '1. Create a new Next.js 14 project with App Router using `npx create-next-app@latest`\n2. Configure TypeScript and ensure proper tsconfig.json setup\n3. Install and configure Tailwind CSS\n4. Set up folder structure following Next.js 14 best practices',
+        testStrategy: 'Verify project structure and configuration by running the development server and ensuring all technologies are properly integrated.',
         status: 'done',
         priority: 'high',
         subtasks: [
-          { id: '1.1', title: 'Instalar Node.js', status: 'done' },
-          { id: '1.2', title: 'Configurar VSCode', status: 'done' }
+          { id: '1.1', title: 'Inicializar projeto Next.js com TypeScript', status: 'done', description: 'Criar a base do projeto utilizando Next.js 14 com App Router e configurar TypeScript adequadamente.' },
+          { id: '1.2', title: 'Configurar Tailwind CSS e estilos globais', status: 'done', description: 'Configurar o Tailwind CSS, definir tema personalizado e criar estilos globais para o projeto.' },
+          { id: '1.3', title: 'Estruturar pastas e arquivos do projeto', status: 'done', description: 'Definir e criar a estrutura de diretórios e arquivos seguindo as melhores práticas para Next.js 14 com App Router.' }
         ]
       },
       {
         id: '2',
-        title: 'Implementar interface Kanban',
-        description: 'Criar componente de visualização Kanban',
+        title: 'Implement Authentication System with NextAuth.js',
+        description: 'Set up user authentication and authorization system using NextAuth.js integrated with Supabase. Implement user registration, login, and profile management.',
+        details: '1. Install NextAuth.js and configure providers\n2. Set up Supabase authentication integration\n3. Create authentication API routes in Next.js\n4. Implement user registration form with validation',
+        testStrategy: 'Test authentication flow by creating test accounts and verifying login, registration, and password reset functionality.',
         status: 'in-progress',
         priority: 'high',
         subtasks: [
-          { id: '2.1', title: 'Desenhar layout', status: 'done' },
-          { id: '2.2', title: 'Implementar arrastar e soltar', status: 'in-progress' }
+          { id: '2.1', title: 'Configurar NextAuth.js com Supabase', status: 'done', description: 'Instalar e configurar NextAuth.js com provider do Supabase para autenticação.' },
+          { id: '2.2', title: 'Implementar formulário de login', status: 'in-progress', description: 'Criar formulário de login com validação e integração com NextAuth.' },
+          { id: '2.3', title: 'Implementar formulário de registro', status: 'pending', description: 'Criar formulário de registro de novos usuários com validação.' }
         ]
       },
       {
         id: '3',
-        title: 'Integrar com Vercel',
-        description: 'Deploy da aplicação na Vercel',
+        title: 'Setup Database Schema and Supabase Integration',
+        description: 'Design and implement the database schema in PostgreSQL via Supabase. Create tables for users, projects, tasks, documents, and other core entities.',
+        details: '1. Design database schema with proper relationships\n2. Set up Supabase project and configure access\n3. Create SQL migrations for all tables\n4. Configure row-level security policies',
+        testStrategy: 'Test database operations by creating test data and verifying CRUD operations work correctly.',
         status: 'pending',
-        priority: 'medium',
+        priority: 'high',
         subtasks: []
+      },
+      {
+        id: '4',
+        title: 'Implement Basic Kanban Board',
+        description: 'Develop the core Kanban board functionality with customizable columns and draggable cards. Include basic card creation, editing, and movement between columns.',
+        details: '1. Create Kanban board component structure\n2. Implement drag-and-drop functionality using a library like react-beautiful-dnd\n3. Create column component with ability to add, edit, and delete columns',
+        testStrategy: 'Test Kanban functionality by creating sample boards and verifying drag-and-drop, card creation, and editing work correctly.',
+        status: 'in-progress',
+        priority: 'medium',
+        subtasks: [
+          { id: '4.1', title: 'Implementar componente de quadro Kanban', status: 'done', description: 'Criar estrutura base do componente Kanban com colunas e cartões.' },
+          { id: '4.2', title: 'Adicionar funcionalidade arrastar e soltar', status: 'in-progress', description: 'Implementar drag-and-drop para mover cartões entre colunas.' }
+        ]
+      },
+      {
+        id: '5',
+        title: 'Integrar com Vercel',
+        description: 'Configurar e realizar o deploy da aplicação na plataforma Vercel, garantindo que o ambiente de produção esteja funcional.',
+        details: '1. Configurar projeto na Vercel\n2. Configurar variáveis de ambiente\n3. Resolver problemas de compatibilidade\n4. Testar funcionalidades após deploy',
+        testStrategy: 'Verificar se todas as funcionalidades estão operando corretamente no ambiente de produção após o deploy.',
+        status: 'done',
+        priority: 'high',
+        subtasks: [
+          { id: '5.1', title: 'Configurar projeto na Vercel', status: 'done', description: 'Criar projeto na Vercel e conectar ao repositório Git.' },
+          { id: '5.2', title: 'Resolver erro 500', status: 'done', description: 'Identificar e corrigir o erro 500 que ocorre durante o deploy.' }
+        ]
       }
     ];
   }
